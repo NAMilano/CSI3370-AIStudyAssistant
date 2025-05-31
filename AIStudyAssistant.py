@@ -3,50 +3,59 @@ from tkinter import filedialog, messagebox
 from docx import Document
 import requests
 import os
+    
+# select and load a locally saved document 
+class LoadDocument:
+    def selectDocument(self):
+        # get file path - SUPPORTED FILE TYPES: docx, txt, pdf
+        path = filedialog.askopenfilename(filetypes=[("Word Document", "*.docx"), ("Text File", "*.txt"), ("PDF Document", "*.pdf")])
 
-
-
-
-# select and parse a locally saved document
-def loadDocument():
-    # get file path - SUPPORTED FILE TYPES: docx, txt, pdf
-    path = filedialog.askopenfilename(filetypes=[("Word Document", "*.docx"), ("Text File", "*.txt"), ("PDF Document", "*.pdf")])
-    # check to make sure a file was selected - if not exit
-    if not path:
-        return None, None
-    try:
+        # check to make sure a file was selected - if not exit
+        if not path:
+            return None, None
+        
         # get the name of the file
         fileName = os.path.basename(path)
-        # get the file type of the selected document
-        fileType = path.split(".")[-1].lower()
+        return fileName, path
 
-        # word document parsing
-        if fileType == "docx":
-            wordDoc = Document(path)
-            # combine all the contents of the document into one string
-            contents = '\n'.join(sections.text for sections in wordDoc.paragraphs if sections.text)
+
+# parse a word doc, txt file, or PDF file compiling all the contents into a single string
+class ParseDocument:
+    def parse(self, path):
+        if not path:
+            return None
+        try:
+            # get the file type of the selected document
+            fileType = path.split(".")[-1].lower()
+
+            # word document parsing
+            if fileType == "docx":
+                wordDoc = Document(path)
+                # combine all the contents of the document into one string
+                contents = '\n'.join(sections.text for sections in wordDoc.paragraphs if sections.text)
+                
             
-        
-        # # text file parsing
-        # elif fileType == "txt":
-        #     # parsing code here
-        #    
-        
-        # # pdf file parsing
-        # elif fileType == "pdf":
-        #     #parsing code here
-        #   
- 
-        return fileName, contents
+            # # text file parsing
+            # elif fileType == "txt":
+            #     # parsing code here
+            #    
+            
+            # # pdf file parsing
+            # elif fileType == "pdf":
+            #     #parsing code here
+            #   
+    
+            return contents
 
-    # error message exception catch
-    except Exception as e:
-        messagebox.showerror("Error", f"Error loading document: {e}")
-        return None, None
+        # error message exception catch
+        except Exception as e:
+            messagebox.showerror("Error", f"Error loading document: {e}")
+            return None
+
     
 
 # handles the Gemini API call 
-class geminiCall:
+class GeminiServices:
     # calls the Gemini API using a HTTP request and then receives the response in a json object
     def call(self, prompt):
         headers = {"Content-Type": "application/json"}
@@ -59,11 +68,13 @@ class geminiCall:
             response = requests.post("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=AIzaSyC1hocc2oAhNvwTyPAmITPIMMbgocHWihc", headers = headers, json = data)
             response.raise_for_status()
             # get the generated AI answer from the returned json object
-            generatedAnswer = response.json()["candidates"][0]["content"]["parts"][0]["text"].strip()
-            return generatedAnswer
+            questions = response.json()["candidates"][0]["content"]["parts"][0]["text"].strip()
+            return questions
         except Exception as e:
             raise Exception(f"Error calling Gemini API: {e}")
         
+
+
 
 # creates quiz questions for the selected document
 # a max of 5 quiz questions but depending on the contents of the document fewer can be presented
@@ -71,8 +82,8 @@ class geminiCall:
 # Example: 
 #   Question: The ________ is the main heat source for the Earth.
 #   Answer: Sun
-class quizQuestions:
-    # get the geminiCall instance from the GUI class
+class QuizQuestions:
+    # get the GeminiServices instance from the GUI class
     def __init__(self, geminiCall):
         self.geminiCall = geminiCall
 
@@ -84,12 +95,24 @@ class quizQuestions:
         
         # prompt used to guide the AI to create the quiz questions - Specifies how many, what we want, and how to format the answer
         prompt = f"Generate 5 fill-in-the-blank quiz questions from this text. You must be able to know the answer solely based on the information in the text. Format each as '(# of question). [question]\nAnswer: [answer]'\n\n. Example response: 1. The _____ is the main heat source for the Earth.\nAnswer: Sun\n\nAlso after each answer have a newline character. Here is the text {contents}"
-        generatedAnswer = self.geminiCall.call(prompt)
-        return generatedAnswer
+        questions = self.geminiCall.call(prompt)
+        return questions
+    
+
+class PromptController:
+    def __init__(self):
+        self.geminiCall = GeminiServices()
+        self.quiz = QuizQuestions(self.geminiCall)
+
+
+    def generateQuizQuestions(self, contents):
+        questions = self.quiz.generate(contents)
+        return questions
+
 
 
 # GUI class for the AI study assistant
-class GUI:
+class StudyAssistantGUI:
     def __init__(self, root):
         # setup GUI main window
         self.root = root
@@ -98,17 +121,18 @@ class GUI:
         self.contents = ""
 
         # initialize class objects
-        self.geminiCall = geminiCall()
-        self.quizQuestions = quizQuestions(self.geminiCall)
+        self.loadDoc = LoadDocument()
+        self.parseDoc = ParseDocument()
+        self.promptCon = PromptController()
 
         # select document button
-        tk.Button(self.root, text="Select Document", command = self.loadDocument).pack(pady=5)
+        tk.Button(self.root, text="Select Document", command = self.selectDocument).pack(pady=5)
 
         # status label to show file name of the loaded document
         self.status_label = tk.Label(self.root, text="No document selected")
         self.status_label.pack(pady=5) 
 
-        # function buttons - summarization, keyTopics, flashcards, quizQuestions, pomodoroTimer
+        # function buttons - summarization, keyTopics, flashcards, QuizQuestions, pomodoroTimer
         buttons = tk.Frame(self.root)
         buttons.pack(pady=5)
         tk.Button(buttons, text="Quiz", command=self.runQuiz).pack(pady=5)
@@ -119,12 +143,12 @@ class GUI:
 
 
 
-    # calls the global loadDocument function
+    # select and load locally saved document
     # updates the UI: shows confirmation message in outputArea - shows filename under "Select Document" button
-    def loadDocument(self):
-        fileName, contents = loadDocument()
-        if fileName and contents:
-            self.contents = contents
+    def selectDocument(self):
+        fileName, path = self.loadDoc.selectDocument()
+        if fileName and path:
+            self.contents = self.parseDoc.parse(path)
             # clear outputArea
             self.outputArea.delete(1.0, tk.END)
             # display success message
@@ -133,7 +157,7 @@ class GUI:
             self.status_label.config(text=fileName)
     
 
-    # calls the quizQuestions generate function
+    # generate quiz questions
     # updates the UI with the generated quiz questions
     def runQuiz(self):
         # check for a loaded document 
@@ -149,7 +173,7 @@ class GUI:
 
         try:
             # generate questions
-            questions = self.quizQuestions.generate(self.contents)
+            questions = self.promptCon.generateQuizQuestions(self.contents)
             # clear output area
             self.outputArea.delete(1.0, tk.END)
             # display results
@@ -169,7 +193,7 @@ class GUI:
 
 if __name__ == "__main__":
     root = tk.Tk()
-    app = GUI(root)
+    mainWindow = StudyAssistantGUI(root)
     root.mainloop()
             
         
