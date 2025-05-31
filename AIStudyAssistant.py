@@ -3,6 +3,8 @@ from tkinter import filedialog, messagebox
 from docx import Document
 import requests
 import os
+import itertools
+import random
     
 # select and load a locally saved document 
 class LoadDocument:
@@ -98,16 +100,47 @@ class QuizQuestions:
         questions = self.geminiCall.call(prompt)
         return questions
     
+class generateFlashcards:
+    def __init__(self, geminiCall):
+        self.geminiCall = geminiCall  # keep the same attribute name
+
+    def generate(self, contents, n_cards=15):
+        if not contents:
+            raise ValueError("Error: Selected document has no contents")
+
+        # TSV prompt
+        prompt = (
+            f"Create exactly {n_cards} flash-cards from the text below. Return ONLY plain text with one card per line, using a TAB between the question and the answer. Example: Are bananas berries?\tYes\n----- TEXT START -----\n"
+            f"{contents}\n----- TEXT END -----"
+        )
+        raw = self.geminiCall.call(prompt)
+
+        cards = []
+
+        for ln in raw.splitlines():
+            if "\t" in ln:
+                q, a = ln.split("\t", 1)
+                cards.append((q.strip(), a.strip()))
+
+        if not cards:
+            raise RuntimeError("Gemini did not return TSV flashcards..")
+        return cards
+    
 
 class PromptController:
     def __init__(self):
         self.geminiCall = GeminiServices()
         self.quiz = QuizQuestions(self.geminiCall)
 
+        self.flashcards = generateFlashcards(self.geminiCall)
+
 
     def generateQuizQuestions(self, contents):
         questions = self.quiz.generate(contents)
         return questions
+    
+    def generateFlashCards(self, contents, n_cards=15):
+        return self.flashcards.generate(contents, n_cards)
 
 
 
@@ -137,6 +170,8 @@ class StudyAssistantGUI:
         buttons.pack(pady=5)
         tk.Button(buttons, text="Quiz", command=self.runQuiz).pack(pady=5)
 
+        tk.Button(buttons, text="Generate Flashcards", command=self.runFlashcards).pack(side=tk.LEFT, padx=5)
+        
         # text output area 
         self.outputArea = tk.Text(self.root, height=20, width=80, wrap="word")
         self.outputArea.pack(pady=5)
@@ -182,6 +217,59 @@ class StudyAssistantGUI:
             self.outputArea.delete(1.0, tk.END)
             # display error message
             self.outputArea.insert(tk.END, f"Error: {e}\n")
+
+    def runFlashcards(self):
+        if not self.contents:
+            messagebox.showwarning("No document available", "Please select a document.")
+            return
+
+        # show processing message
+        self.outputArea.delete("1.0", tk.END)
+        self.outputArea.insert(tk.END, "Generating flash-cards...")
+        self.root.update()
+
+        try:
+            #flashcard method
+            cards = self.promptCon.generateFlashCards(self.contents)  # returns list of (Q, A)
+            self.outputArea.delete("1.0", tk.END)
+            self.outputArea.insert(tk.END, f"{len(cards)} cards generated – launching viewer…")
+            self.openCardViewer(cards)
+        except Exception as e:
+            self.outputArea.delete("1.0", tk.END)
+            self.outputArea.insert(tk.END, f"Error: {e}")
+
+    def openCardViewer(self, cards):
+        random.shuffle(cards)  # shuffle cards so questions are not in document order
+
+        deck = itertools.cycle(cards)  # infinite loop until user closes window
+        win = tk.Toplevel(self.root)
+        win.title("Flash-Card Review")
+        win.geometry("500x260")
+
+        q_var = tk.StringVar()
+        a_var = tk.StringVar()
+
+        # interactive card UI and its boxes.
+        tk.Label(win, textvariable=q_var, wraplength=460,
+                 font=("Helvetica", 15, "bold")).pack(pady=(25, 10))
+        tk.Label(win, textvariable=a_var, wraplength=460,
+                 font=("Helvetica", 14)).pack(pady=(0, 15))
+
+        btn_bar = tk.Frame(win)
+        btn_bar.pack()
+        tk.Button(btn_bar, text="Show Answer",
+                  command=lambda: a_var.set(current[1])).pack(side=tk.LEFT, padx=6)
+        tk.Button(btn_bar, text="Next Card",
+                  command=lambda: show_next()).pack(side=tk.LEFT, padx=6)
+        
+        def show_next():
+            nonlocal current
+            current = next(deck)
+            q_var.set(current[0])
+            a_var.set("")  # hides the answer until Show Answer is clicked
+
+        current = None
+        show_next()
 
 
 
