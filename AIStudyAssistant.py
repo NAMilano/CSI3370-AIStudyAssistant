@@ -127,6 +127,50 @@ class generateFlashcards:
         return cards
     
 
+class FlashcardViewer(tk.Toplevel):
+    #class for flashcard viewer 
+
+    def __init__(self, parent, cards):
+        super().__init__(parent)
+        self.title("Flash‑Card Review")
+        self.geometry("500x260")
+
+        # randomize the order of cards then cycles the same.
+        random.shuffle(cards)
+        self.deck = itertools.cycle(cards)
+
+        # tkinter variables for question and answer
+        self.q_var = tk.StringVar()
+        self.a_var = tk.StringVar()
+
+        # layout for the popup questions
+        tk.Label(self, textvariable=self.q_var, wraplength=460,
+                 font=("Helvetica", 15, "bold")).pack(pady=(25, 10))
+        tk.Label(self, textvariable=self.a_var, wraplength=460,
+                 font=("Helvetica", 14)).pack(pady=(0, 15))
+
+        bar = tk.Frame(self)
+        bar.pack()
+        tk.Button(bar, text="Show Answer",
+                  command=self.show_answer).pack(side=tk.LEFT, padx=6)
+        tk.Button(bar, text="Next Card",
+                  command=self.next_card).pack(side=tk.LEFT, padx=6)
+
+        self.current = None
+        self.next_card()          # shows the first q
+
+    # helper functions 
+    def next_card(self):
+       # Load the next card and hide its answer
+        self.current = next(self.deck)
+        self.q_var.set(self.current[0])
+        self.a_var.set("")
+
+    def show_answer(self):
+        # shows answer
+        self.a_var.set(self.current[1])
+    
+
 class PromptController:
     def __init__(self):
         self.geminiCall = GeminiServices()
@@ -141,7 +185,6 @@ class PromptController:
     
     def generateFlashCards(self, contents, n_cards=15):
         return self.flashcards.generate(contents, n_cards)
-
 
 
 # GUI class for the AI study assistant
@@ -233,49 +276,10 @@ class StudyAssistantGUI:
             cards = self.promptCon.generateFlashCards(self.contents)  # returns list of (Q, A)
             self.outputArea.delete("1.0", tk.END)
             self.outputArea.insert(tk.END, f"{len(cards)} cards generated – launching viewer…")
-            self.openCardViewer(cards)
+            FlashcardViewer(self.root, cards) 
         except Exception as e:
             self.outputArea.delete("1.0", tk.END)
             self.outputArea.insert(tk.END, f"Error: {e}")
-
-    def openCardViewer(self, cards):
-        random.shuffle(cards)  # shuffle cards so questions are not in document order
-
-        deck = itertools.cycle(cards)  # infinite loop until user closes window
-        win = tk.Toplevel(self.root)
-        win.title("Flash-Card Review")
-        win.geometry("500x260")
-
-        q_var = tk.StringVar()
-        a_var = tk.StringVar()
-
-        # interactive card UI and its boxes.
-        tk.Label(win, textvariable=q_var, wraplength=460,
-                 font=("Helvetica", 15, "bold")).pack(pady=(25, 10))
-        tk.Label(win, textvariable=a_var, wraplength=460,
-                 font=("Helvetica", 14)).pack(pady=(0, 15))
-
-        btn_bar = tk.Frame(win)
-        btn_bar.pack()
-        tk.Button(btn_bar, text="Show Answer",
-                  command=lambda: a_var.set(current[1])).pack(side=tk.LEFT, padx=6)
-        tk.Button(btn_bar, text="Next Card",
-                  command=lambda: show_next()).pack(side=tk.LEFT, padx=6)
-        
-        def show_next():
-            nonlocal current
-            current = next(deck)
-            q_var.set(current[0])
-            a_var.set("")  # hides the answer until Show Answer is clicked
-
-        current = None
-        show_next()
-
-
-
-
-
-
 
 
 
