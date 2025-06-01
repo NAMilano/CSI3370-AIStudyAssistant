@@ -175,7 +175,6 @@ class PromptController:
     def __init__(self):
         self.geminiCall = GeminiServices()
         self.quiz = QuizQuestions(self.geminiCall)
-
         self.flashcards = generateFlashcards(self.geminiCall)
 
 
@@ -200,6 +199,7 @@ class StudyAssistantGUI:
         self.loadDoc = LoadDocument()
         self.parseDoc = ParseDocument()
         self.promptCon = PromptController()
+        self.flashcardWindow = None
 
         # select document button
         tk.Button(self.root, text="Select Document", command = self.selectDocument).pack(pady=5)
@@ -276,7 +276,13 @@ class StudyAssistantGUI:
             cards = self.promptCon.generateFlashCards(self.contents)  # returns list of (Q, A)
             self.outputArea.delete("1.0", tk.END)
             self.outputArea.insert(tk.END, f"{len(cards)} cards generated – launching viewer…")
-            FlashcardViewer(self.root, cards) 
+
+            # check if the window is already created/open - if it is close it
+            if self.flashcardWindow is not None and self.flashcardWindow.winfo_exists():
+                self.flashcardWindow.destroy()
+
+            # create flashcard UI element
+            self.flashcardWindow = FlashcardViewer(self.root, cards) 
         except Exception as e:
             self.outputArea.delete("1.0", tk.END)
             self.outputArea.insert(tk.END, f"Error: {e}")
@@ -285,7 +291,7 @@ class StudyAssistantGUI:
 
 if __name__ == "__main__":
     root = tk.Tk()
-    mainWindow = StudyAssistantGUI(root)
+    app = StudyAssistantGUI(root)
     root.mainloop()
             
         
