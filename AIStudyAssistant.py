@@ -100,7 +100,7 @@ class QuizQuestions:
         questions = self.geminiCall.call(prompt)
         return questions
     
-class generateFlashcards:
+class Flashcards:
     def __init__(self, geminiCall):
         self.geminiCall = geminiCall  # keep the same attribute name
 
@@ -175,15 +175,15 @@ class PromptController:
     def __init__(self):
         self.geminiCall = GeminiServices()
         self.quiz = QuizQuestions(self.geminiCall)
-        self.flashcards = generateFlashcards(self.geminiCall)
+        self.cards = Flashcards(self.geminiCall)
 
 
     def generateQuizQuestions(self, contents):
         questions = self.quiz.generate(contents)
         return questions
     
-    def generateFlashCards(self, contents, n_cards=15):
-        return self.flashcards.generate(contents, n_cards)
+    def generateFlashcards(self, contents, n_cards=15):
+        return self.cards.generate(contents, n_cards)
 
 
 # GUI class for the AI study assistant
@@ -273,7 +273,7 @@ class StudyAssistantGUI:
 
         try:
             #flashcard method
-            cards = self.promptCon.generateFlashCards(self.contents)  # returns list of (Q, A)
+            cards = self.promptCon.generateFlashcards(self.contents)  # returns list of (Q, A)
             self.outputArea.delete("1.0", tk.END)
             self.outputArea.insert(tk.END, f"{len(cards)} cards generated – launching viewer…")
 
