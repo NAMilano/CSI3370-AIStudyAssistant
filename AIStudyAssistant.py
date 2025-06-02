@@ -175,7 +175,7 @@ class PromptController:
     def __init__(self):
         self.geminiCall = GeminiServices()
         self.quiz = QuizQuestions(self.geminiCall)
-        self.cards = Flashcards(self.geminiCall)
+        self.flash = Flashcards(self.geminiCall)
 
 
     def generateQuizQuestions(self, contents):
@@ -183,7 +183,7 @@ class PromptController:
         return questions
     
     def generateFlashcards(self, contents, n_cards=15):
-        return self.cards.generate(contents, n_cards)
+        return self.flash.generate(contents, n_cards)
 
 
 # GUI class for the AI study assistant
