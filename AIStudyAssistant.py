@@ -1,10 +1,12 @@
 import tkinter as tk
-from tkinter import filedialog, messagebox
+from tkinter import filedialog, messagebox, ttk
 from docx import Document
+from datetime import datetime
 import requests
 import os
 import itertools
 import random
+import json
     
 # select and load a locally saved document 
 class LoadDocument:
@@ -185,6 +187,157 @@ class PromptController:
     def generateFlashcards(self, contents, n_cards=15):
         return self.flash.generate(contents, n_cards)
 
+# Pomodoro timer class
+# Allows user to set work and break durations and track Pomodoro sessions throughout the day
+# Includes progress bar, session counter, goal tracker, and persistent session storage
+class PomodoroTimer(tk.Toplevel):
+    def __init__(self, parent):
+        super().__init__(parent)
+        self.title("Pomodoro Timer")
+        self.geometry("320x400")
+
+        # initialize session tracking file and today's date
+        self.data_file = "pomodoro_data.json"
+        self.today = datetime.now().strftime("%Y-%m-%d")
+        self.session_count = self.load_session_count()
+
+        # initialize control flags and variables
+        self.is_running = False
+        self.timer_id = None
+
+        # timer state variables
+        self.work_duration = tk.IntVar(value=25)      # default 25 min work
+        self.break_duration = tk.IntVar(value=5)      # default 5 min break
+        self.goal = tk.IntVar(value=4)                # default 4 Pomodoros goal
+        self.time_left = tk.StringVar(value="00:00")
+        self.current_phase = "Work"
+
+        # input fields: user sets durations and daily goal
+        tk.Label(self, text="Work Duration (minutes):").pack(pady=3)
+        tk.Entry(self, textvariable=self.work_duration).pack()
+
+        tk.Label(self, text="Break Duration (minutes):").pack(pady=3)
+        tk.Entry(self, textvariable=self.break_duration).pack()
+
+        tk.Label(self, text="Daily Goal (Pomodoros):").pack(pady=3)
+        tk.Entry(self, textvariable=self.goal).pack()
+
+        # label to show current phase (Work or Break)
+        self.phase_label = tk.Label(self, text=f"Phase: {self.current_phase}", font=("Helvetica", 12, "bold"))
+        self.phase_label.pack(pady=10)
+
+        # large display for countdown
+        self.timer_label = tk.Label(self, textvariable=self.time_left, font=("Helvetica", 28))
+        self.timer_label.pack(pady=5)
+
+        # progress bar to visually show timer progress
+        self.progress = ttk.Progressbar(self, length=250, mode='determinate', maximum=100)
+        self.progress.pack(pady=5)
+
+        # start, stop, and reset buttons
+        button_frame = tk.Frame(self)
+        button_frame.pack(pady=10)
+        tk.Button(button_frame, text="Start", command=self.start_timer).pack(side=tk.LEFT, padx=5)
+        tk.Button(button_frame, text="Stop", command=self.stop_timer).pack(side=tk.LEFT, padx=5)
+        tk.Button(button_frame, text="Reset", command=self.reset_timer).pack(side=tk.LEFT, padx=5)
+
+        # session status display (completed & goal)
+        self.session_label = tk.Label(self, text=f"Pomodoros completed: {self.session_count}")
+        self.session_label.pack()
+        self.goal_label = tk.Label(self, text=self.goal_progress_text())
+        self.goal_label.pack()
+
+    # load the session count from the saved JSON file if the date matches today
+    def load_session_count(self):
+        if os.path.exists(self.data_file):
+            with open(self.data_file, "r") as f:
+                data = json.load(f)
+                if data.get("date") == self.today:
+                    return data.get("count", 0)
+        return 0
+
+    # save session count and date to a JSON file for persistence
+    def save_session_count(self):
+        with open(self.data_file, "w") as f:
+            json.dump({"date": self.today, "count": self.session_count}, f)
+
+    # generate the text showing goal progress
+    def goal_progress_text(self):
+        return f"Goal progress: {self.session_count}/{self.goal.get()} {'✅' if self.session_count >= self.goal.get() else ''}"
+
+    # starts the Pomodoro timer
+    def start_timer(self):
+        if self.is_running:
+            return
+        self.is_running = True
+        duration = self.work_duration.get() * 60
+        self.run_phase(duration, "Work")
+
+    # stops the timer (does not reset)
+    def stop_timer(self):
+        if self.timer_id:
+            self.after_cancel(self.timer_id)
+        self.is_running = False
+
+    # resets timer display and progress bar to current phase's full duration
+    def reset_timer(self):
+        self.stop_timer()
+        duration = self.work_duration.get() * 60 if self.current_phase == "Work" else self.break_duration.get() * 60
+        mins, secs = divmod(duration, 60)
+        self.time_left.set(f"{mins:02}:{secs:02}")
+        self.progress['value'] = 0
+        self.phase_label.config(text=f"Phase: {self.current_phase}")
+
+    # begins countdown for given phase (Work or Break)
+    def run_phase(self, duration, phase):
+        self.current_phase = phase
+        self.total_phase_time = duration
+        self.phase_label.config(text=f"Phase: {self.current_phase}")
+        self.countdown(duration)
+
+    # updates countdown every second, adjusts progress bar
+    def countdown(self, remaining):
+        mins, secs = divmod(remaining, 60)
+        self.time_left.set(f"{mins:02}:{secs:02}")
+
+        percent = (1 - remaining / self.total_phase_time) * 100
+        self.progress['value'] = percent
+
+        if remaining > 0:
+            self.timer_id = self.after(1000, self.countdown, remaining - 1)
+        else:
+            self.is_running = False
+            self.notify_phase_end()
+
+            if self.current_phase == "Work":
+                # increment session count after a work session
+                self.session_count += 1
+                self.session_label.config(text=f"Pomodoros completed: {self.session_count}")
+                self.goal_label.config(text=self.goal_progress_text())
+                self.save_session_count()
+
+                # show popup if user reached their daily goal
+                if self.session_count == self.goal.get():
+                    messagebox.showinfo("Goal Reached!", "🎉 You've completed your Pomodoro goal for the day!")
+
+                # begin break phase
+                self.run_phase(self.break_duration.get() * 60, "Break")
+
+            elif self.current_phase == "Break":
+                # begin work phase
+                self.run_phase(self.work_duration.get() * 60, "Work")
+
+    # shows popup and beeps at the end of each phase
+    def notify_phase_end(self):
+        try:
+            self.bell()
+        except:
+            pass
+        if self.current_phase == "Work":
+            messagebox.showinfo("Break Time!", "Time for a break!")
+        else:
+            messagebox.showinfo("Work Time!", "Back to work!")
+
 
 # GUI class for the AI study assistant
 class StudyAssistantGUI:
@@ -200,6 +353,7 @@ class StudyAssistantGUI:
         self.parseDoc = ParseDocument()
         self.promptCon = PromptController()
         self.flashcardWindow = None
+        self.pomodoroWindow = None
 
         # select document button
         tk.Button(self.root, text="Select Document", command = self.selectDocument).pack(pady=5)
@@ -214,7 +368,8 @@ class StudyAssistantGUI:
         tk.Button(buttons, text="Quiz", command=self.runQuiz).pack(pady=5)
 
         tk.Button(buttons, text="Generate Flashcards", command=self.runFlashcards).pack(side=tk.LEFT, padx=5)
-        
+        tk.Button(buttons, text="Pomodoro Timer", command=self.runPomodoro).pack(side=tk.LEFT, padx=5)
+
         # text output area 
         self.outputArea = tk.Text(self.root, height=20, width=80, wrap="word")
         self.outputArea.pack(pady=5)
@@ -287,7 +442,14 @@ class StudyAssistantGUI:
             self.outputArea.delete("1.0", tk.END)
             self.outputArea.insert(tk.END, f"Error: {e}")
 
+    def runPomodoro(self):
+        # check if the window is already created/open - if it is close it
+        if self.pomodoroWindow is not None and self.pomodoroWindow.winfo_exists():
+            self.pomodoroWindow.lift()
+            return
 
+        # create the Pomodoro timer window
+        self.pomodoroWindow = PomodoroTimer(self.root)
 
 if __name__ == "__main__":
     root = tk.Tk()
