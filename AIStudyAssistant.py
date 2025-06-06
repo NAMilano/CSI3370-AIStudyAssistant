@@ -72,8 +72,8 @@ class GeminiServices:
             response = requests.post("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=AIzaSyC1hocc2oAhNvwTyPAmITPIMMbgocHWihc", headers = headers, json = data)
             response.raise_for_status()
             # get the generated AI answer from the returned json object
-            questions = response.json()["candidates"][0]["content"]["parts"][0]["text"].strip()
-            return questions
+            geminiResponse = response.json()["candidates"][0]["content"]["parts"][0]["text"].strip()
+            return geminiResponse
         except Exception as e:
             raise Exception(f"Error calling Gemini API: {e}")
         
@@ -98,8 +98,19 @@ class QuizQuestions:
             raise ValueError("Error: Selected document has no contents")
         
         # prompt used to guide the AI to create the quiz questions - Specifies how many, what we want, and how to format the answer
-        prompt = f"Generate 5 fill-in-the-blank quiz questions from this text. You must be able to know the answer solely based on the information in the text. Format each as '(# of question). [question]\nAnswer: [answer]'\n\n. Example response: 1. The _____ is the main heat source for the Earth.\nAnswer: Sun\n\nAlso after each answer have a newline character. Here is the text {contents}"
-        questions = self.geminiCall.call(prompt)
+        prompt = f"Generate 5 fill-in-the-blank quiz questions from this text. Someone viewing these questions must be able to know the answer solely based on the information in the text they are being generated from. Format each as '(# of question). [question]\tAnswer: [answer]'\n. Example response: 1. The _____ is the main heat source for the Earth.\tAnswer: Sun\n. Here is the text: {contents}"
+        raw = self.geminiCall.call(prompt)
+
+        questions = []
+
+        for ln in raw.splitlines():
+            if "\t" in ln:
+                q, a = ln.split("\t", 1)
+                questions.append((q.strip(), a.strip()))
+
+        if not questions:
+            raise RuntimeError("Gemini did not return valid quiz questions. Please try again.")
+        
         return questions
     
 class Flashcards:
@@ -345,7 +356,7 @@ class StudyAssistantGUI:
         # setup GUI main window
         self.root = root
         self.root.title("AI Study Assistant - Powered by Gemini")
-        self.root.geometry("700x470")
+        self.root.geometry("700x500")
         self.contents = ""
 
         # initialize class objects
@@ -354,6 +365,7 @@ class StudyAssistantGUI:
         self.promptCon = PromptController()
         self.flashcardWindow = None
         self.pomodoroWindow = None
+        self.viewAnswersButton = None
 
         # select document button
         tk.Button(self.root, text="Select Document", command = self.selectDocument).pack(pady=5)
@@ -363,16 +375,15 @@ class StudyAssistantGUI:
         self.status_label.pack(pady=5) 
 
         # function buttons - summarization, keyTopics, flashcards, QuizQuestions, pomodoroTimer
-        buttons = tk.Frame(self.root)
-        buttons.pack(pady=5)
-        tk.Button(buttons, text="Quiz", command=self.runQuiz).pack(pady=5)
-
-        tk.Button(buttons, text="Generate Flashcards", command=self.runFlashcards).pack(side=tk.LEFT, padx=5)
-        tk.Button(buttons, text="Pomodoro Timer", command=self.runPomodoro).pack(side=tk.LEFT, padx=5)
+        self.buttons = tk.Frame(self.root)
+        self.buttons.pack(pady=5)
+        tk.Button(self.buttons, text="Generate Quiz", command=self.runQuiz).pack(side=tk.LEFT, pady=5)
+        tk.Button(self.buttons, text="Generate Flashcards", command=self.runFlashcards).pack(side=tk.LEFT, padx=5)
+        tk.Button(self.buttons, text="Pomodoro Timer", command=self.runPomodoro).pack(side=tk.LEFT, padx=5)
 
         # text output area 
         self.outputArea = tk.Text(self.root, height=20, width=80, wrap="word")
-        self.outputArea.pack(pady=5)
+        self.outputArea.pack(side=tk.BOTTOM, pady=15)
 
 
 
@@ -406,15 +417,35 @@ class StudyAssistantGUI:
 
         try:
             # generate questions
-            questions = self.promptCon.generateQuizQuestions(self.contents)
+            self.questions = self.promptCon.generateQuizQuestions(self.contents)
             # clear output area
             self.outputArea.delete(1.0, tk.END)
-            # display results
-            self.outputArea.insert(tk.END, questions)
+
+            for q, a in self.questions:
+                self.outputArea.insert(tk.END, q + "\n\n")
+            
+            tempButton = tk.Frame(self.root)
+            tempButton.pack(pady=5) 
+
+            self.viewAnswersButton = tk.Button(tempButton, text="View Quiz Answers", command=self.showAnswers)
+            self.viewAnswersButton.pack(side=tk.BOTTOM, padx=5)
+
+
         except Exception as e:
             self.outputArea.delete(1.0, tk.END)
             # display error message
             self.outputArea.insert(tk.END, f"Error: {e}\n")
+
+
+    def showAnswers(self):
+        self.outputArea.insert(tk.END, "\n")
+        for q, a in self.questions:
+            self.outputArea.insert(tk.END, a + "\n")
+
+        # destroy the view answers button after displaying the results
+        self.viewAnswersButton.destroy()
+        self.viewAnswersButton = None
+
 
     def runFlashcards(self):
         if not self.contents:
