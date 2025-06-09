@@ -139,6 +139,36 @@ class Flashcards:
             raise RuntimeError("Gemini did not return TSV flashcards..")
         return cards
     
+class TopicExtractor:
+    def __init__(self, geminiCall):
+        self.geminiCall = geminiCall
+
+    def analyze(self, contents):
+        if not contents:
+            raise ValueError("Error: Selected document has no contents")
+        
+        # prompt to extract key topics with clear formatting
+        prompt = f"""Analyze the following document and extract the most important key topics and concepts. 
+        Present them as a clear, organized list. Focus on the main themes, important terms, and core concepts that a student should understand.
+        Format your response EXACTLY like this example:
+
+        • Main Topic 1 - Brief explanation
+        • Main Topic 2 - Brief explanation  
+        • Key Concept 1 - What it means
+        • Important Term - Definition or context
+        • Core Principle - Why it matters
+
+        Use bullet points (•) and keep each point concise but informative. Limit to 8-12 key topics maximum.
+        
+        Document text: {contents}"""
+        
+        raw = self.geminiCall.call(prompt)
+        
+        if not raw:
+            raise RuntimeError("Gemini did not return key topics. Please try again.")
+        
+        return raw.strip()
+
 
 class FlashcardViewer(tk.Toplevel):
     #class for flashcard viewer 
@@ -189,6 +219,7 @@ class PromptController:
         self.geminiCall = GeminiServices()
         self.quiz = QuizQuestions(self.geminiCall)
         self.flash = Flashcards(self.geminiCall)
+        self.extractor = TopicExtractor(self.geminiCall)
 
 
     def generateQuizQuestions(self, contents):
@@ -197,7 +228,10 @@ class PromptController:
     
     def generateFlashcards(self, contents, n_cards=15):
         return self.flash.generate(contents, n_cards)
-
+    
+    def extractKeyTopics(self, contents):
+        return self.extractor.analyze(contents)
+    
 # Pomodoro timer class
 # Allows user to set work and break durations and track Pomodoro sessions throughout the day
 # Includes progress bar, session counter, goal tracker, and persistent session storage
@@ -379,6 +413,7 @@ class StudyAssistantGUI:
         self.buttons.pack(pady=5)
         tk.Button(self.buttons, text="Generate Quiz", command=self.runQuiz).pack(side=tk.LEFT, pady=5)
         tk.Button(self.buttons, text="Generate Flashcards", command=self.runFlashcards).pack(side=tk.LEFT, padx=5)
+        tk.Button(self.buttons, text="Get Key Topics", command=self.getKeyTopics).pack(side=tk.LEFT, padx=5) 
         tk.Button(self.buttons, text="Pomodoro Timer", command=self.runPomodoro).pack(side=tk.LEFT, padx=5)
 
         # text output area 
@@ -472,6 +507,67 @@ class StudyAssistantGUI:
         except Exception as e:
             self.outputArea.delete("1.0", tk.END)
             self.outputArea.insert(tk.END, f"Error: {e}")
+
+    def getKeyTopics(self):
+        # check for a loaded document 
+        if not self.contents:
+            # error message when no document is loaded
+            messagebox.showwarning("No document available", "Please select a document.")
+            return
+        
+        # update output area with a processing message
+        self.outputArea.delete(1.0, tk.END)
+        self.outputArea.insert(tk.END, "Extracting key topics from document...")
+        self.root.update()
+
+        try:
+            # extract key topics
+            topics = self.promptCon.extractKeyTopics(self.contents)
+            # clear output area and display topics with nice formatting
+            self.outputArea.delete(1.0, tk.END)
+            
+            # Add attractive header
+            self.outputArea.insert(tk.END, "📚 KEY TOPICS & CONCEPTS\n")
+            self.outputArea.insert(tk.END, "=" * 60 + "\n\n")
+            
+            # Process and format the topics nicely
+            formatted_topics = self.formatTopics(topics)
+            self.outputArea.insert(tk.END, formatted_topics)
+            
+            # Add footer
+            self.outputArea.insert(tk.END, "\n\n" + "=" * 60)
+            self.outputArea.insert(tk.END, "\n💡 Tip: Use these topics to guide your study focus!")
+            
+        except Exception as e:
+            self.outputArea.delete(1.0, tk.END)
+            # display error message
+            self.outputArea.insert(tk.END, f"Error: {e}\n")       
+
+    # Helper method to format topics nicely
+    def formatTopics(self, topics):
+        lines = topics.split('\n')
+        formatted = ""
+        
+        for line in lines:
+            line = line.strip()
+            if not line:
+                formatted += "\n"
+                continue
+                
+            # If line doesn't start with bullet, add one
+            if line and not line.startswith('•') and not line.startswith('-') and not line.startswith('*'):
+                if line.startswith(('1.', '2.', '3.', '4.', '5.', '6.', '7.', '8.', '9.')):
+                    # Convert numbered list to bullets
+                    line = '• ' + line[2:].strip()
+                else:
+                    line = '• ' + line
+            elif line.startswith('-') or line.startswith('*'):
+                # Convert other bullet types to consistent format
+                line = '• ' + line[1:].strip()
+            
+            formatted += line + "\n"
+        
+        return formatted
 
     def runPomodoro(self):
         # check if the window is already created/open - if it is close it
