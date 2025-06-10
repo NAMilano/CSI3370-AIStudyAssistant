@@ -158,16 +158,16 @@ class TopicExtractor:
         • Important Term - Definition or context
         • Core Principle - Why it matters
 
-        Use bullet points (•) and keep each point concise but informative. Limit to 8-12 key topics maximum.
+        Use bullet points (•) and keep each point concise but informative. Limit to 8-12 key topics maximum. Do not include any additional text or explanations outside the requested format.
         
         Document text: {contents}"""
         
-        raw = self.geminiCall.call(prompt)
+        topics = self.geminiCall.call(prompt)
         
-        if not raw:
+        if not topics:
             raise RuntimeError("Gemini did not return key topics. Please try again.")
         
-        return raw.strip()
+        return topics
 
 
 class FlashcardViewer(tk.Toplevel):
