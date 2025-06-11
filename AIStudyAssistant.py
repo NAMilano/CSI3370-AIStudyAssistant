@@ -78,8 +78,6 @@ class GeminiServices:
             raise Exception(f"Error calling Gemini API: {e}")
         
 
-
-
 # creates quiz questions for the selected document
 # a max of 5 quiz questions but depending on the contents of the document fewer can be presented
 # a keyword from the question is replaced with _______ for a fill-in-the-blank quiz experience
@@ -115,7 +113,7 @@ class QuizQuestions:
     
 class Flashcards:
     def __init__(self, geminiCall):
-        self.geminiCall = geminiCall  # keep the same attribute name
+        self.geminiCall = geminiCall  
 
     def generate(self, contents, n_cards=15):
         if not contents:
@@ -138,6 +136,26 @@ class Flashcards:
         if not cards:
             raise RuntimeError("Gemini did not return TSV flashcards..")
         return cards
+    
+class Summarization:
+    # get the GeminiServices instance from the GUI class
+    def __init__(self, geminiCall):
+        self.geminiCall = geminiCall
+
+    def generate(self, contents):
+        # check that contents string is populated
+        if not contents:
+            raise ValueError("Error: Selected document has no contents")
+        
+        # prompt used to guide the AI to create the a summary of the document provided 
+        #prompt = f"Generate 5 fill-in-the-blank quiz questions from this text. Someone viewing these questions must be able to know the answer solely based on the information in the text they are being generated from. Format each as '(# of question). [question]\tAnswer: [answer]'\n. Example response: 1. The _____ is the main heat source for the Earth.\tAnswer: Sun\n. Here is the text: {contents}"
+        prompt = f"Generate a clear and consise summary of the following document. Inlude the main points, key concepts, and any important details that a reader should know. Keep the summary short as possible, ideally around 5-6 sentences with a maximum or around 1/3 of the original document length. Format the response as a single paragraph without any additional text or explanations outside the summary.\n\nHere is the document text: {contents}"
+        summary = self.geminiCall.call(prompt)
+
+        if not summary:
+            raise RuntimeError("Gemini did not return valid quiz questions. Please try again.")
+        
+        return summary
     
 class TopicExtractor:
     def __init__(self, geminiCall):
@@ -220,11 +238,14 @@ class PromptController:
         self.quiz = QuizQuestions(self.geminiCall)
         self.flash = Flashcards(self.geminiCall)
         self.extractor = TopicExtractor(self.geminiCall)
+        self.summ = Summarization(self.geminiCall)
 
 
     def generateQuizQuestions(self, contents):
-        questions = self.quiz.generate(contents)
-        return questions
+        return self.quiz.generate(contents)
+    
+    def generateSummary(self, contents):
+        return self.summ.generate(contents)
     
     def generateFlashcards(self, contents, n_cards=15):
         return self.flash.generate(contents, n_cards)
@@ -411,6 +432,7 @@ class StudyAssistantGUI:
         # function buttons - summarization, keyTopics, flashcards, QuizQuestions, pomodoroTimer
         self.buttons = tk.Frame(self.root)
         self.buttons.pack(pady=5)
+        tk.Button(self.buttons, text="Generate Summary", command=self.runSummary).pack(side=tk.LEFT, pady=5)
         tk.Button(self.buttons, text="Generate Quiz", command=self.runQuiz).pack(side=tk.LEFT, pady=5)
         tk.Button(self.buttons, text="Generate Flashcards", command=self.runFlashcards).pack(side=tk.LEFT, padx=5)
         tk.Button(self.buttons, text="Get Key Topics", command=self.getKeyTopics).pack(side=tk.LEFT, padx=5) 
@@ -456,6 +478,10 @@ class StudyAssistantGUI:
             # clear output area
             self.outputArea.delete(1.0, tk.END)
 
+            # header
+            self.outputArea.insert(tk.END, "📝 QUIZ QUESTIONS\n")
+            self.outputArea.insert(tk.END, "=" * 80 + "\n\n")
+
             for q, a in self.questions:
                 self.outputArea.insert(tk.END, q + "\n\n")
             
@@ -480,6 +506,38 @@ class StudyAssistantGUI:
         # destroy the view answers button after displaying the results
         self.viewAnswersButton.destroy()
         self.viewAnswersButton = None
+
+
+    def runSummary(self):
+        # check for a loaded document 
+        if not self.contents:
+            # error message when no document is loaded
+            messagebox.showwarning("No document available", "Please select a document.")
+            return
+        
+        # update output area with a processing message
+        self.outputArea.delete(1.0, tk.END)
+        self.outputArea.insert(tk.END, "Generating Summary...")
+        self.root.update()
+
+        try:
+            # generate summary
+            self.summary = self.promptCon.generateSummary(self.contents)
+            # clear output area
+            self.outputArea.delete(1.0, tk.END)
+            # header
+            self.outputArea.insert(tk.END, "📄 DOCUMENT SUMMARY\n")
+            self.outputArea.insert(tk.END, "=" * 80 + "\n\n")
+            # summary 
+            self.outputArea.insert(tk.END, self.summary + "\n\n")
+            # footer
+            self.outputArea.insert(tk.END, "=" * 80)
+
+
+        except Exception as e:
+            self.outputArea.delete(1.0, tk.END)
+            # display error message
+            self.outputArea.insert(tk.END, f"Error: {e}\n")
 
 
     def runFlashcards(self):
@@ -528,16 +586,15 @@ class StudyAssistantGUI:
             
             # Add attractive header
             self.outputArea.insert(tk.END, "📚 KEY TOPICS & CONCEPTS\n")
-            self.outputArea.insert(tk.END, "=" * 60 + "\n\n")
+            self.outputArea.insert(tk.END, "=" * 80 + "\n\n")
             
             # Process and format the topics nicely
             formatted_topics = self.formatTopics(topics)
             self.outputArea.insert(tk.END, formatted_topics)
             
             # Add footer
-            self.outputArea.insert(tk.END, "\n\n" + "=" * 60)
-            self.outputArea.insert(tk.END, "\n💡 Tip: Use these topics to guide your study focus!")
-            
+            self.outputArea.insert(tk.END, "\n\n" + "=" * 80)
+
         except Exception as e:
             self.outputArea.delete(1.0, tk.END)
             # display error message
