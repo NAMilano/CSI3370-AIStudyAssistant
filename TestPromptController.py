@@ -97,6 +97,23 @@ class TestPromptController(unittest.TestCase):
             self.promptCon.extractKeyTopics("") 
         self.assertEqual(str(context.exception), "Error: Selected document has no contents")
         mockCall.assert_called_once()
+
+    @patch('AIStudyAssistant.GeminiServices.call')
+    def testGenerateSummary(self, mockCall):
+        
+        # mock the Gemini API call response for testing purposes
+        mockCall.return_value = "Venus is the hottest planet in the solar system due to its thick atmosphere of carbon dioxide, which creates a runaway greenhouse effect, trapping heat."
+        contents = "Venus is the hottest planet in the solar system, even though Mercury is closer to the sun. Venus has an incredibly thick atmosphere full of carbon dioxide, which traps heat in a runaway greenhouse effect."
+        summary = self.promptCon.generateSummary(contents)
+
+        # test that the summary is properly returned 
+        self.assertEqual(summary, "Venus is the hottest planet in the solar system due to its thick atmosphere of carbon dioxide, which creates a runaway greenhouse effect, trapping heat.")
+
+        # test that the correct error is thrown when no contents are passed 
+        with self.assertRaises(ValueError) as context:
+            self.promptCon.generateSummary("") 
+        self.assertEqual(str(context.exception), "Error: Selected document has no contents")
+        mockCall.assert_called_once()
         
     
 
