@@ -411,7 +411,7 @@ class StudyAssistantGUI:
         # setup GUI main window
         self.root = root
         self.root.title("AI Study Assistant - Powered by Gemini")
-        self.root.geometry("700x500")
+        self.root.geometry("700x530")
         self.contents = ""
 
         # initialize class objects
@@ -432,11 +432,14 @@ class StudyAssistantGUI:
         # function buttons - summarization, keyTopics, flashcards, QuizQuestions, pomodoroTimer
         self.buttons = tk.Frame(self.root)
         self.buttons.pack(pady=5)
-        tk.Button(self.buttons, text="Generate Summary", command=self.runSummary).pack(side=tk.LEFT, pady=5)
-        tk.Button(self.buttons, text="Generate Quiz", command=self.runQuiz).pack(side=tk.LEFT, pady=5)
+        self.buttonsRow2 = tk.Frame(self.root)
+        self.buttonsRow2.pack(pady=5)
+
+        tk.Button(self.buttons, text="Generate Summary", command=self.runSummary).pack(side=tk.LEFT, padx=5)
+        tk.Button(self.buttons, text="Generate Quiz", command=self.runQuiz).pack(side=tk.LEFT, padx=5)
         tk.Button(self.buttons, text="Generate Flashcards", command=self.runFlashcards).pack(side=tk.LEFT, padx=5)
-        tk.Button(self.buttons, text="Get Key Topics", command=self.getKeyTopics).pack(side=tk.LEFT, padx=5) 
-        tk.Button(self.buttons, text="Pomodoro Timer", command=self.runPomodoro).pack(side=tk.LEFT, padx=5)
+        tk.Button(self.buttonsRow2, text="Get Key Topics", command=self.getKeyTopics).pack(side=tk.LEFT, padx=5) 
+        tk.Button(self.buttonsRow2, text="Pomodoro Timer", command=self.runPomodoro).pack(side=tk.LEFT, padx=5)
 
         # text output area 
         self.outputArea = tk.Text(self.root, height=20, width=80, wrap="word")
@@ -639,14 +642,3 @@ if __name__ == "__main__":
     root = tk.Tk()
     app = StudyAssistantGUI(root)
     root.mainloop()
-            
-        
-
-
-
-
-
-
-
-
-
