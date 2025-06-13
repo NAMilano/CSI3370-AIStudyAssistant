@@ -46,7 +46,7 @@ class TestPromptController(unittest.TestCase):
             self.promptCon.generateQuizQuestions("") 
         self.assertEqual(str(context.exception), "Error: Selected document has no contents")
         mockCall.assert_called_once()
-    
+
 
     @patch('AIStudyAssistant.GeminiServices.call')
     def testGenerateFlashcards(self, mockCall):
@@ -76,7 +76,7 @@ class TestPromptController(unittest.TestCase):
         self.assertEqual(str(context.exception), "Error: Selected document has no contents")
         mockCall.assert_called_once()
 
-    
+
     @patch('AIStudyAssistant.GeminiServices.call')
     def testExtractKeyTopics(self, mockCall):
         
@@ -115,45 +115,6 @@ class TestPromptController(unittest.TestCase):
         self.assertEqual(str(context.exception), "Error: Selected document has no contents")
         mockCall.assert_called_once()
         
-    
-
-
+        
 if __name__ == '__main__':
     unittest.main()
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
