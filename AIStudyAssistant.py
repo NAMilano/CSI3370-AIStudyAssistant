@@ -7,6 +7,7 @@ import os
 import itertools
 import random
 import json
+import fitz # PyMuPDF
     
 # select and load a locally saved document 
 class LoadDocument:
@@ -38,16 +39,17 @@ class ParseDocument:
                 # combine all the contents of the document into one string
                 contents = '\n'.join(sections.text for sections in wordDoc.paragraphs if sections.text)
                 
-            
-            # # text file parsing
-            # elif fileType == "txt":
-            #     # parsing code here
-            #    
+             # # text file parsing
+            elif fileType == "txt":
+                with open(path, 'r', encoding='utf-8') as file:
+                    contents = file.read()
             
             # # pdf file parsing
-            # elif fileType == "pdf":
-            #     #parsing code here
-            #   
+            elif fileType == "pdf":
+                contents = ""
+                with fitz.open(path) as pdfDoc:
+                    for page in pdfDoc:
+                        contents += page.get_text() 
     
             return contents
 
